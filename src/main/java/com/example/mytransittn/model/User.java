@@ -55,6 +55,6 @@ public class User {
     public boolean isAdmin() {
         return ROLE_ADMIN.equals(this.role);
     }
-    
+
 
 }

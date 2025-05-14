@@ -17,6 +17,9 @@ public interface StationRepository extends JpaRepository<Station, Long> {
     @Query("SELECT s FROM Station s WHERE s.status = 'OPEN'")
     List<Station> findAllOpenStations();
     
-    @Query("SELECT s FROM Station s JOIN s.lines l WHERE l.id = :lineId ORDER BY l.stations.station_order")
+    @Query(value = "SELECT s.* FROM stations s " +
+           "JOIN line_stations ls ON s.id = ls.station_id " +
+           "WHERE ls.line_id = :lineId " +
+           "ORDER BY ls.station_order", nativeQuery = true)
     List<Station> findStationsByLineIdOrdered(@Param("lineId") Long lineId);
 } 

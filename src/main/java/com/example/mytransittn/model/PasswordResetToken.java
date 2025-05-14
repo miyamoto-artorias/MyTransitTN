@@ -24,6 +24,11 @@ public class PasswordResetToken {
     @JoinColumn(nullable = false, name = "user_id")
     private User user;
 
+    public PasswordResetToken(String token, User user, LocalDateTime expiresAt) {
+        this.token = token;
+        this.user = user;
+        this.expiresAt = expiresAt;
+    }
 
     public boolean isExpired() {
         return LocalDateTime.now().isAfter(expiresAt);
