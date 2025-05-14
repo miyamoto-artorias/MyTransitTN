@@ -27,6 +27,11 @@ import static org.springframework.security.config.Customizer.withDefaults;
 @Configuration
 public class SecurityConfig {
 
+    // ********** DEVELOPMENT MODE FLAG **********
+    // Set to false in production to restore security
+    private static final boolean DEVELOPMENT_MODE = true;
+    // ******************************************
+
     private final CustomUserDetailsService userDetailsService;
     private final CustomOAuth2UserService customOAuth2UserService;
     private final String REMEMBER_ME_KEY = "uniqueAndSecretKey";
@@ -48,53 +53,69 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .cors(withDefaults())
-                .csrf(csrf -> csrf
-                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                        .ignoringRequestMatchers(
-                                "/api/auth/forgot-password",
-                                "/api/auth/reset-password",
-                                "/api/auth/login",
-                                "/api/auth/register",
-                                "/api/auth/continue-with-email"
-                        )
-                )
-                .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                        .maximumSessions(1)
-                        .expiredUrl("/login?expired")
-                )
+        if (DEVELOPMENT_MODE) {
+            // Development mode configuration - completely disable security
+            http.cors(withDefaults())
+                .csrf(csrf -> csrf.disable())  // Disable CSRF protection in dev mode
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/check", "/api/auth/login", "/api/auth/register", 
-                            "/api/auth/forgot-password", "/api/auth/reset-password", "/api/auth/continue-with-email",
-                            "/swagger-ui-custom.html", "/swagger-ui.html", "/swagger-ui/**", 
-                            "/v3/api-docs/**", "/webjars/**").permitAll()
-                        .anyRequest().hasAnyRole("ADMIN", "USER")
-                )
-                .rememberMe(rememberMe -> rememberMe
-                        .rememberMeServices(rememberMeServices())
+                    .anyRequest().permitAll()  // Allow all requests without authentication
                 )
                 .oauth2Login(oauth2 -> oauth2
-                        .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
-                        .defaultSuccessUrl("http://localhost:4200/dashboard", true)
+                    .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
+                    .defaultSuccessUrl("http://localhost:4200/dashboard", true)
+                );
+        } else {
+            // Production mode configuration - full security
+            http.cors(withDefaults())
+                .csrf(csrf -> csrf
+                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                    .ignoringRequestMatchers(
+                        "/api/auth/forgot-password",
+                        "/api/auth/reset-password",
+                        "/api/auth/login",
+                        "/api/auth/register",
+                        "/api/auth/continue-with-email"
+                    )
+                )
+                .sessionManagement(session -> session
+                    .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                    .maximumSessions(1)
+                    .expiredUrl("/login?expired")
+                )
+                .authorizeHttpRequests(auth -> auth
+                    .requestMatchers("/api/auth/check", "/api/auth/login", "/api/auth/register", 
+                        "/api/auth/forgot-password", "/api/auth/reset-password", "/api/auth/continue-with-email",
+                        "/swagger-ui-custom.html", "/swagger-ui.html", "/swagger-ui/**", 
+                        "/v3/api-docs/**", "/webjars/**").permitAll()
+                    .anyRequest().hasAnyRole("ADMIN", "USER")
+                )
+                .rememberMe(rememberMe -> rememberMe
+                    .rememberMeServices(rememberMeServices())
+                )
+                .oauth2Login(oauth2 -> oauth2
+                    .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
+                    .defaultSuccessUrl("http://localhost:4200/dashboard", true)
                 )
                 .logout(logout -> logout
-                        .logoutUrl("/api/auth/logout")
-                        .logoutSuccessHandler((request, response, authentication) -> {
-                            response.setStatus(HttpServletResponse.SC_OK);
-                        })
-                        .invalidateHttpSession(true)
-                        .deleteCookies("JSESSIONID", "remember-me")
-                        .permitAll()
+                    .logoutUrl("/api/auth/logout")
+                    .logoutSuccessHandler((request, response, authentication) -> {
+                        response.setStatus(HttpServletResponse.SC_OK);
+                    })
+                    .invalidateHttpSession(true)
+                    .deleteCookies("JSESSIONID", "remember-me")
+                    .permitAll()
                 );
+        }
         return http.build();
     }
 
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:4200"));
+        // ********** DEVELOPMENT ONLY - MODIFY IN PRODUCTION **********
+        // In production, remove http://localhost:8080 if not needed
+        configuration.setAllowedOrigins(List.of("http://localhost:4200", "http://localhost:8080"));
+        // ********************************************************
         configuration.setAllowedMethods(List.of("*"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

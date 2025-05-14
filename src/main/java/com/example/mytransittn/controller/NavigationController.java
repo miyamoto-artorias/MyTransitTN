@@ -1,5 +1,7 @@
 package com.example.mytransittn.controller;
 
+import com.example.mytransittn.dto.PathResultDto;
+import com.example.mytransittn.dto.StationDto;
 import com.example.mytransittn.model.PathResult;
 import com.example.mytransittn.model.Station;
 import com.example.mytransittn.repository.StationRepository;
@@ -9,7 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/navigation")
@@ -25,27 +27,35 @@ public class NavigationController {
     }
 
     @GetMapping("/stations")
-    public ResponseEntity<List<Station>> getAllStations() {
-        return ResponseEntity.ok(stationRepository.findAll());
+    public ResponseEntity<List<StationDto>> getAllStations() {
+        List<StationDto> stationDtos = stationRepository.findAll().stream()
+                .map(StationDto::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(stationDtos);
     }
 
     @GetMapping("/stations/open")
-    public ResponseEntity<List<Station>> getOpenStations() {
-        return ResponseEntity.ok(stationRepository.findAllOpenStations());
+    public ResponseEntity<List<StationDto>> getOpenStations() {
+        List<StationDto> stationDtos = stationRepository.findAllOpenStations().stream()
+                .map(StationDto::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(stationDtos);
     }
 
     @GetMapping("/stations/{id}")
-    public ResponseEntity<Station> getStationById(@PathVariable Long id) {
+    public ResponseEntity<StationDto> getStationById(@PathVariable Long id) {
         return stationRepository.findById(id)
+                .map(StationDto::fromEntity)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/route")
-    public ResponseEntity<PathResult> findRoute(@RequestParam Long from, @RequestParam Long to) {
+    public ResponseEntity<PathResultDto> findRoute(@RequestParam Long from, @RequestParam Long to) {
         try {
             PathResult result = navigationService.findShortestPath(from, to);
-            return ResponseEntity.ok(result);
+            PathResultDto resultDto = PathResultDto.fromEntity(result);
+            return ResponseEntity.ok(resultDto);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
         } catch (Exception e) {
@@ -54,12 +64,18 @@ public class NavigationController {
     }
 
     @GetMapping("/stations/by-state/{stateId}")
-    public ResponseEntity<List<Station>> getStationsByState(@PathVariable Long stateId) {
-        return ResponseEntity.ok(stationRepository.findByStateId(stateId));
+    public ResponseEntity<List<StationDto>> getStationsByState(@PathVariable Long stateId) {
+        List<StationDto> stationDtos = stationRepository.findByStateId(stateId).stream()
+                .map(StationDto::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(stationDtos);
     }
 
     @GetMapping("/stations/by-line/{lineId}")
-    public ResponseEntity<List<Station>> getStationsByLine(@PathVariable Long lineId) {
-        return ResponseEntity.ok(stationRepository.findStationsByLineIdOrdered(lineId));
+    public ResponseEntity<List<StationDto>> getStationsByLine(@PathVariable Long lineId) {
+        List<StationDto> stationDtos = stationRepository.findStationsByLineIdOrdered(lineId).stream()
+                .map(StationDto::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(stationDtos);
     }
 } 

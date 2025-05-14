@@ -22,6 +22,7 @@ public class StationAdminController {
     private final StationRepository stationRepository;
     private final StateRepository stateRepository;
     private final UserRepository userRepository;
+    private final boolean isDevMode = true; // Set to false in production
 
     @Autowired
     public StationAdminController(StationRepository stationRepository, 
@@ -34,10 +35,12 @@ public class StationAdminController {
     
     @PostMapping
     public ResponseEntity<?> createStation(@RequestBody StationRequest request) {
-        // Check admin authorization
-        User user = getCurrentUser();
-        if (user == null || !user.isAdmin()) {
-            return ResponseEntity.status(403).build();
+        // Check admin authorization (bypassed in dev mode)
+        if (!isDevMode) {
+            User user = getCurrentUser();
+            if (user == null || !user.isAdmin()) {
+                return ResponseEntity.status(403).build();
+            }
         }
         
         // Validate request
@@ -67,10 +70,12 @@ public class StationAdminController {
     
     @PutMapping("/{id}")
     public ResponseEntity<?> updateStation(@PathVariable Long id, @RequestBody StationRequest request) {
-        // Check admin authorization
-        User user = getCurrentUser();
-        if (user == null || !user.isAdmin()) {
-            return ResponseEntity.status(403).build();
+        // Check admin authorization (bypassed in dev mode)
+        if (!isDevMode) {
+            User user = getCurrentUser();
+            if (user == null || !user.isAdmin()) {
+                return ResponseEntity.status(403).build();
+            }
         }
         
         // Check if station exists
@@ -112,10 +117,12 @@ public class StationAdminController {
     
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteStation(@PathVariable Long id) {
-        // Check admin authorization
-        User user = getCurrentUser();
-        if (user == null || !user.isAdmin()) {
-            return ResponseEntity.status(403).build();
+        // Check admin authorization (bypassed in dev mode)
+        if (!isDevMode) {
+            User user = getCurrentUser();
+            if (user == null || !user.isAdmin()) {
+                return ResponseEntity.status(403).build();
+            }
         }
         
         // Check if station exists

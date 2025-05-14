@@ -1,5 +1,7 @@
 package com.example.mytransittn.controller;
 
+import com.example.mytransittn.dto.LineDto;
+import com.example.mytransittn.dto.StationDto;
 import com.example.mytransittn.model.Line;
 import com.example.mytransittn.model.Station;
 import com.example.mytransittn.repository.LineRepository;
@@ -8,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/lines")
@@ -21,33 +24,44 @@ public class LineController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Line>> getAllLines() {
-        return ResponseEntity.ok(lineRepository.findAll());
+    public ResponseEntity<List<LineDto>> getAllLines() {
+        List<LineDto> lineDtos = lineRepository.findAll().stream()
+                .map(LineDto::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(lineDtos);
     }
 
     @GetMapping("/with-stations")
-    public ResponseEntity<List<Line>> getAllLinesWithStations() {
-        return ResponseEntity.ok(lineRepository.findAllWithStations());
+    public ResponseEntity<List<LineDto>> getAllLinesWithStations() {
+        List<LineDto> lineDtos = lineRepository.findAllWithStations().stream()
+                .map(LineDto::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(lineDtos);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Line> getLineById(@PathVariable Long id) {
+    public ResponseEntity<LineDto> getLineById(@PathVariable Long id) {
         return lineRepository.findById(id)
+                .map(LineDto::fromEntity)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/code/{code}")
-    public ResponseEntity<Line> getLineByCode(@PathVariable String code) {
+    public ResponseEntity<LineDto> getLineByCode(@PathVariable String code) {
         return lineRepository.findByCode(code)
+                .map(LineDto::fromEntity)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/{id}/stations")
-    public ResponseEntity<List<Station>> getLineStations(@PathVariable Long id) {
+    public ResponseEntity<List<StationDto>> getLineStations(@PathVariable Long id) {
         return lineRepository.findById(id)
-                .map(line -> ResponseEntity.ok(line.getStations()))
+                .map(line -> line.getStations().stream()
+                        .map(StationDto::fromEntity)
+                        .collect(Collectors.toList()))
+                .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 } 

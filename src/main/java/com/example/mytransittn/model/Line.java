@@ -1,5 +1,7 @@
 package com.example.mytransittn.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -36,6 +38,7 @@ public class Line {
             inverseJoinColumns = @JoinColumn(name = "station_id")
     )
     @OrderColumn(name = "station_order")
+    @JsonIgnoreProperties("lines")
     private List<Station> stations = new ArrayList<>();
 
 

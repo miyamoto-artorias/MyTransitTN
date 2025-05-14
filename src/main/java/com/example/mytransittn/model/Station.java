@@ -1,5 +1,7 @@
 package com.example.mytransittn.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -30,6 +32,7 @@ public class Station {
 
     /** back-ref to lines this station sits on */
     @ManyToMany(mappedBy = "stations")
+    @JsonIgnoreProperties("stations")
     private Set<Line> lines = new HashSet<>();
 
     @Enumerated(EnumType.STRING)
