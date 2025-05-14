@@ -154,11 +154,10 @@ public class JourneyController {
     }
 
     @PutMapping("/{id}/complete")
-    @Transactional(rollbackFor = Exception.class)
     public ResponseEntity<JourneyDto> completeJourney(@PathVariable Long id) {
         try {
+            // Find the journey
             Optional<Journey> journeyOpt = journeyRepository.findById(id);
-            
             if (journeyOpt.isEmpty()) {
                 return ResponseEntity.notFound().build();
             }
@@ -166,38 +165,34 @@ public class JourneyController {
             Journey journey = journeyOpt.get();
             User currentUser = getCurrentUser();
             
+            // Check authorization
             if (currentUser == null || !journey.getUser().equals(currentUser)) {
                 return ResponseEntity.status(403).build();
             }
             
-            // Only IN_PROGRESS or PLANNED journeys can be completed
+            // Check status
             if (journey.getStatus() != Journey.JourneyStatus.IN_PROGRESS && 
                 journey.getStatus() != Journey.JourneyStatus.PLANNED) {
                 return ResponseEntity.badRequest().build();
             }
             
-            // Set required fields
+            // Update journey state
             journey.setStatus(Journey.JourneyStatus.COMPLETED);
             journey.setEndTime(LocalDateTime.now());
             
-            // Save the journey - this will trigger the JourneyListener to calculate fare
-            Journey updatedJourney = journeyRepository.saveAndFlush(journey);
+            // Calculate the distance
+            double distance = fareCalculationService.computeDistance(
+                journey.getStartStation(), journey.getEndStation(), journey);
+            journey.setDistanceKm(distance);
             
-            // If fare calculation failed in the listener, do it manually
-            if (updatedJourney.getFare() == null || updatedJourney.getDistanceKm() == null) {
-                double distance = fareCalculationService.computeDistance(
-                    journey.getStartStation(), journey.getEndStation(), journey);
-                updatedJourney.setDistanceKm(distance);
-                
-                BigDecimal fare = fareCalculationService.calculateFare(updatedJourney);
-                updatedJourney.setFare(fare);
-                
-                updatedJourney = journeyRepository.saveAndFlush(updatedJourney);
-            }
+            // Calculate the fare based on the distance
+            BigDecimal fare = fareCalculationService.calculateFare(journey);
+            journey.setFare(fare);
             
+            // Save the updated journey
+            Journey updatedJourney = journeyRepository.save(journey);
             return ResponseEntity.ok(JourneyDto.fromEntity(updatedJourney));
         } catch (Exception e) {
-            // Log the exception for debugging
             e.printStackTrace();
             JourneyDto errorDto = new JourneyDto();
             errorDto.setError("Failed to complete journey: " + e.getMessage());

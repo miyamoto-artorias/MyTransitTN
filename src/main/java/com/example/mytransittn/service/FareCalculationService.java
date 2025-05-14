@@ -4,7 +4,6 @@ import com.example.mytransittn.model.FareConfiguration;
 import com.example.mytransittn.model.Journey;
 import com.example.mytransittn.model.Station;
 import com.example.mytransittn.repository.FareConfigurationRepository;
-import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -19,12 +18,6 @@ public class FareCalculationService {
 
     public FareCalculationService(FareConfigurationRepository fareConfigRepo) {
         this.fareConfigRepo = fareConfigRepo;
-    }
-    
-    @PostConstruct
-    public void init() {
-        // Set this service instance to the JourneyListener
-        Journey.JourneyListener.setFareCalculationService(this);
     }
 
     /**
