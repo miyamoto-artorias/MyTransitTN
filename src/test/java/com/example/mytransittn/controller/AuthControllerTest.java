@@ -49,4 +49,4 @@ public class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("login"));
     }
-}
+} 

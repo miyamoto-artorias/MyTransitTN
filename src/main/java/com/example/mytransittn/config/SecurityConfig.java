@@ -66,7 +66,10 @@ public class SecurityConfig {
                         .expiredUrl("/login?expired")
                 )
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/check", "/api/auth/login", "/api/auth/register", "/api/auth/forgot-password", "/api/auth/reset-password", "/api/auth/continue-with-email").permitAll()
+                        .requestMatchers("/api/auth/check", "/api/auth/login", "/api/auth/register", 
+                            "/api/auth/forgot-password", "/api/auth/reset-password", "/api/auth/continue-with-email",
+                            "/swagger-ui-custom.html", "/swagger-ui.html", "/swagger-ui/**", 
+                            "/v3/api-docs/**", "/webjars/**").permitAll()
                         .anyRequest().hasAnyRole("ADMIN", "USER")
                 )
                 .rememberMe(rememberMe -> rememberMe
