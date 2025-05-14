@@ -105,6 +105,21 @@ public class JourneyController {
         journey.setUser(user);
         journey.setStartTime(LocalDateTime.now());
         journey.setStatus(Journey.JourneyStatus.PLANNED);
+        
+        // Calculate distance for the journey
+        try {
+            double distance = fareCalculationService.computeDistance(
+                startStation.get(), endStation.get(), journey);
+            journey.setDistanceKm(distance);
+            
+            // Pre-calculate fare for informational purposes
+            // Note: This will be recalculated when journey is completed
+            BigDecimal fare = fareCalculationService.calculateFare(journey);
+            journey.setFare(fare);
+        } catch (Exception e) {
+            System.err.println("Failed to pre-calculate fare/distance: " + e.getMessage());
+            // Continue even if calculation fails
+        }
 
         Journey savedJourney = journeyRepository.save(journey);
         return ResponseEntity.ok(JourneyDto.fromEntity(savedJourney));
@@ -138,7 +153,7 @@ public class JourneyController {
         // Calculate fare and distance
         try {
             double distance = fareCalculationService.computeDistance(
-                journey.getStartStation(), journey.getEndStation());
+                journey.getStartStation(), journey.getEndStation(), journey);
             journey.setDistanceKm(distance);
             
             BigDecimal fare = fareCalculationService.calculateFare(journey);
