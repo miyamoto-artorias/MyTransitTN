@@ -1,5 +1,6 @@
 package com.example.mytransittn.controller;
 
+import com.example.mytransittn.dto.PaymentDto;
 import com.example.mytransittn.model.Journey;
 import com.example.mytransittn.model.Payment;
 import com.example.mytransittn.model.User;
@@ -18,6 +19,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/payments")
@@ -36,16 +38,22 @@ public class PaymentController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Payment>> getUserPayments() {
+    public ResponseEntity<List<PaymentDto>> getUserPayments() {
         User user = getCurrentUser();
         if (user == null) {
             return ResponseEntity.badRequest().build();
         }
-        return ResponseEntity.ok(paymentRepository.findByUserOrderByTransactionTimeDesc(user));
+        
+        List<PaymentDto> paymentDtos = paymentRepository.findByUserOrderByTransactionTimeDesc(user)
+            .stream()
+            .map(PaymentDto::fromEntity)
+            .collect(Collectors.toList());
+            
+        return ResponseEntity.ok(paymentDtos);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Payment> getPaymentById(@PathVariable Long id) {
+    public ResponseEntity<PaymentDto> getPaymentById(@PathVariable Long id) {
         Optional<Payment> payment = paymentRepository.findById(id);
         
         if (payment.isEmpty()) {
@@ -58,12 +66,12 @@ public class PaymentController {
             return ResponseEntity.status(403).build();
         }
         
-        return ResponseEntity.ok(payment.get());
+        return ResponseEntity.ok(PaymentDto.fromEntity(payment.get()));
     }
 
     @PostMapping("/topup")
     @Transactional
-    public ResponseEntity<Payment> topUpBalance(@RequestBody TopupRequest request) {
+    public ResponseEntity<PaymentDto> topUpBalance(@RequestBody PaymentDto.TopupRequestDto request) {
         User user = getCurrentUser();
         if (user == null) {
             return ResponseEntity.badRequest().build();
@@ -86,12 +94,13 @@ public class PaymentController {
         user.setBalance(user.getBalance().add(request.getAmount()));
         userRepository.save(user);
 
-        return ResponseEntity.ok(paymentRepository.save(payment));
+        Payment savedPayment = paymentRepository.save(payment);
+        return ResponseEntity.ok(PaymentDto.fromEntity(savedPayment));
     }
 
     @PostMapping("/journey/{journeyId}")
     @Transactional
-    public ResponseEntity<Payment> payForJourney(@PathVariable Long journeyId) {
+    public ResponseEntity<PaymentDto> payForJourney(@PathVariable Long journeyId) {
         User user = getCurrentUser();
         if (user == null) {
             return ResponseEntity.badRequest().build();
@@ -112,7 +121,7 @@ public class PaymentController {
         // Check if already paid
         List<Payment> existingPayments = paymentRepository.findByJourneyId(journeyId);
         if (!existingPayments.isEmpty()) {
-            return ResponseEntity.badRequest().body(null);
+            return ResponseEntity.badRequest().build();
         }
 
         // Check balance
@@ -134,12 +143,13 @@ public class PaymentController {
         user.setBalance(user.getBalance().subtract(journey.getFare()));
         userRepository.save(user);
 
-        return ResponseEntity.ok(paymentRepository.save(payment));
+        Payment savedPayment = paymentRepository.save(payment);
+        return ResponseEntity.ok(PaymentDto.fromEntity(savedPayment));
     }
 
     @PostMapping("/refund/{paymentId}")
     @Transactional
-    public ResponseEntity<Payment> refundPayment(@PathVariable Long paymentId) {
+    public ResponseEntity<PaymentDto> refundPayment(@PathVariable Long paymentId) {
         User user = getCurrentUser();
         if (user == null || !user.isAdmin()) {
             return ResponseEntity.status(403).build();
@@ -177,11 +187,12 @@ public class PaymentController {
         refundUser.setBalance(refundUser.getBalance().add(originalPayment.getAmount()));
         userRepository.save(refundUser);
 
-        return ResponseEntity.ok(paymentRepository.save(refund));
+        Payment savedRefund = paymentRepository.save(refund);
+        return ResponseEntity.ok(PaymentDto.fromEntity(savedRefund));
     }
 
     @GetMapping("/status/{status}")
-    public ResponseEntity<List<Payment>> getPaymentsByStatus(@PathVariable String status) {
+    public ResponseEntity<List<PaymentDto>> getPaymentsByStatus(@PathVariable String status) {
         User user = getCurrentUser();
         if (user == null) {
             return ResponseEntity.badRequest().build();
@@ -189,7 +200,12 @@ public class PaymentController {
 
         try {
             Payment.PaymentStatus paymentStatus = Payment.PaymentStatus.valueOf(status.toUpperCase());
-            return ResponseEntity.ok(paymentRepository.findByUserAndStatus(user, paymentStatus));
+            List<PaymentDto> paymentDtos = paymentRepository.findByUserAndStatus(user, paymentStatus)
+                .stream()
+                .map(PaymentDto::fromEntity)
+                .collect(Collectors.toList());
+                
+            return ResponseEntity.ok(paymentDtos);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
         }
@@ -203,21 +219,8 @@ public class PaymentController {
         
         return userRepository.findByEmail(auth.getName()).orElse(null);
     }
-
+    
     private String generateTransactionReference() {
-        return UUID.randomUUID().toString();
-    }
-
-    // Request DTO for balance top-up
-    static class TopupRequest {
-        private BigDecimal amount;
-
-        public BigDecimal getAmount() {
-            return amount;
-        }
-
-        public void setAmount(BigDecimal amount) {
-            this.amount = amount;
-        }
+        return UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
     }
 } 

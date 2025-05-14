@@ -1,5 +1,6 @@
 package com.example.mytransittn.controller;
 
+import com.example.mytransittn.dto.JourneyDto;
 import com.example.mytransittn.model.Journey;
 import com.example.mytransittn.model.User;
 import com.example.mytransittn.repository.JourneyRepository;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/journeys")
@@ -36,16 +38,22 @@ public class JourneyController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Journey>> getUserJourneys() {
+    public ResponseEntity<List<JourneyDto>> getUserJourneys() {
         User user = getCurrentUser();
         if (user == null) {
             return ResponseEntity.badRequest().build();
         }
-        return ResponseEntity.ok(journeyRepository.findByUserOrderByStartTimeDesc(user));
+        
+        List<JourneyDto> journeyDtos = journeyRepository.findByUserOrderByStartTimeDesc(user)
+            .stream()
+            .map(JourneyDto::fromEntity)
+            .collect(Collectors.toList());
+            
+        return ResponseEntity.ok(journeyDtos);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Journey> getJourneyById(@PathVariable Long id) {
+    public ResponseEntity<JourneyDto> getJourneyById(@PathVariable Long id) {
         Optional<Journey> journey = journeyRepository.findById(id);
         
         if (journey.isEmpty()) {
@@ -58,11 +66,11 @@ public class JourneyController {
             return ResponseEntity.status(403).build();
         }
         
-        return ResponseEntity.ok(journey.get());
+        return ResponseEntity.ok(JourneyDto.fromEntity(journey.get()));
     }
 
     @PostMapping
-    public ResponseEntity<Journey> createJourney(@RequestBody JourneyRequest request) {
+    public ResponseEntity<JourneyDto> createJourney(@RequestBody JourneyDto.JourneyRequestDto request) {
         User user = getCurrentUser();
         if (user == null) {
             return ResponseEntity.badRequest().build();
@@ -92,23 +100,26 @@ public class JourneyController {
         journey.setStartTime(LocalDateTime.now());
         journey.setStatus(Journey.JourneyStatus.PLANNED);
 
-        return ResponseEntity.ok(journeyRepository.save(journey));
+        Journey savedJourney = journeyRepository.save(journey);
+        return ResponseEntity.ok(JourneyDto.fromEntity(savedJourney));
     }
 
     @PutMapping("/{id}/start")
-    public ResponseEntity<Journey> startJourney(@PathVariable Long id) {
+    public ResponseEntity<JourneyDto> startJourney(@PathVariable Long id) {
         return updateJourneyStatus(id, Journey.JourneyStatus.IN_PROGRESS);
     }
 
     @PutMapping("/{id}/complete")
-    public ResponseEntity<Journey> completeJourney(@PathVariable Long id) {
-        ResponseEntity<Journey> response = updateJourneyStatus(id, Journey.JourneyStatus.COMPLETED);
+    public ResponseEntity<JourneyDto> completeJourney(@PathVariable Long id) {
+        ResponseEntity<JourneyDto> response = updateJourneyStatus(id, Journey.JourneyStatus.COMPLETED);
         
-        if (response.getStatusCode().is2xxSuccessful()) {
-            Journey journey = response.getBody();
-            if (journey != null) {
+        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+            Optional<Journey> journeyOpt = journeyRepository.findById(id);
+            if (journeyOpt.isPresent()) {
+                Journey journey = journeyOpt.get();
                 journey.setEndTime(LocalDateTime.now());
                 journeyRepository.save(journey);
+                return ResponseEntity.ok(JourneyDto.fromEntity(journey));
             }
         }
         
@@ -116,12 +127,12 @@ public class JourneyController {
     }
 
     @PutMapping("/{id}/cancel")
-    public ResponseEntity<Journey> cancelJourney(@PathVariable Long id) {
+    public ResponseEntity<JourneyDto> cancelJourney(@PathVariable Long id) {
         return updateJourneyStatus(id, Journey.JourneyStatus.CANCELLED);
     }
 
     @GetMapping("/status/{status}")
-    public ResponseEntity<List<Journey>> getJourneysByStatus(@PathVariable String status) {
+    public ResponseEntity<List<JourneyDto>> getJourneysByStatus(@PathVariable String status) {
         User user = getCurrentUser();
         if (user == null) {
             return ResponseEntity.badRequest().build();
@@ -129,14 +140,19 @@ public class JourneyController {
 
         try {
             Journey.JourneyStatus journeyStatus = Journey.JourneyStatus.valueOf(status.toUpperCase());
-            return ResponseEntity.ok(journeyRepository.findByUserAndStatus(user, journeyStatus));
+            List<JourneyDto> journeyDtos = journeyRepository.findByUserAndStatus(user, journeyStatus)
+                .stream()
+                .map(JourneyDto::fromEntity)
+                .collect(Collectors.toList());
+                
+            return ResponseEntity.ok(journeyDtos);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
         }
     }
 
     @GetMapping("/between")
-    public ResponseEntity<List<Journey>> getJourneysBetween(
+    public ResponseEntity<List<JourneyDto>> getJourneysBetween(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
         
@@ -145,10 +161,15 @@ public class JourneyController {
             return ResponseEntity.status(403).build();
         }
         
-        return ResponseEntity.ok(journeyRepository.findJourneysBetween(start, end));
+        List<JourneyDto> journeyDtos = journeyRepository.findJourneysBetween(start, end)
+            .stream()
+            .map(JourneyDto::fromEntity)
+            .collect(Collectors.toList());
+            
+        return ResponseEntity.ok(journeyDtos);
     }
 
-    private ResponseEntity<Journey> updateJourneyStatus(Long id, Journey.JourneyStatus status) {
+    private ResponseEntity<JourneyDto> updateJourneyStatus(Long id, Journey.JourneyStatus status) {
         Optional<Journey> journeyOpt = journeyRepository.findById(id);
         
         if (journeyOpt.isEmpty()) {
@@ -163,7 +184,8 @@ public class JourneyController {
         }
         
         journey.setStatus(status);
-        return ResponseEntity.ok(journeyRepository.save(journey));
+        Journey updatedJourney = journeyRepository.save(journey);
+        return ResponseEntity.ok(JourneyDto.fromEntity(updatedJourney));
     }
 
     private User getCurrentUser() {
@@ -173,36 +195,5 @@ public class JourneyController {
         }
         
         return userRepository.findByEmail(auth.getName()).orElse(null);
-    }
-
-    // Request DTO for journey creation
-    static class JourneyRequest {
-        private Long startStationId;
-        private Long endStationId;
-        private Long lineId;
-
-        public Long getStartStationId() {
-            return startStationId;
-        }
-
-        public void setStartStationId(Long startStationId) {
-            this.startStationId = startStationId;
-        }
-
-        public Long getEndStationId() {
-            return endStationId;
-        }
-
-        public void setEndStationId(Long endStationId) {
-            this.endStationId = endStationId;
-        }
-
-        public Long getLineId() {
-            return lineId;
-        }
-
-        public void setLineId(Long lineId) {
-            this.lineId = lineId;
-        }
     }
 } 
