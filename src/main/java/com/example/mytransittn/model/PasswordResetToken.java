@@ -1,9 +1,13 @@
 package com.example.mytransittn.model;
 
 import jakarta.persistence.*;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+@Data
+@NoArgsConstructor
 @Entity
 public class PasswordResetToken {
 
@@ -19,33 +23,8 @@ public class PasswordResetToken {
     @OneToOne(fetch = FetchType.EAGER)
     @JoinColumn(nullable = false, name = "user_id")
     private User user;
-    public PasswordResetToken() {}
-    public PasswordResetToken(String token, User user, LocalDateTime expiresAt) {
-        this.token = token;
-        this.user = user;
-        this.expiresAt = expiresAt;
-    }
-    public Long getId() {
-        return id;
-    }
-    public String getToken() {
-        return token;
-    }
-    public void setToken(String token) {
-        this.token = token;
-    }
-    public LocalDateTime getExpiresAt() {
-        return expiresAt;
-    }
-    public void setExpiresAt(LocalDateTime expiresAt) {
-        this.expiresAt = expiresAt;
-    }
-    public User getUser() {
-        return user;
-    }
-    public void setUser(User user) {
-        this.user = user;
-    }
+
+
     public boolean isExpired() {
         return LocalDateTime.now().isAfter(expiresAt);
     }
