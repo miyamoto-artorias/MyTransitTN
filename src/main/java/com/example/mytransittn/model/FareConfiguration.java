@@ -41,7 +41,30 @@ public class FareConfiguration {
     private ConfigStatus status;
 
     public enum ConfigStatus { ACTIVE, INACTIVE, SCHEDULED }
+    
+    // Explicit getters to ensure they're available even if Lombok doesn't generate them
+    public BigDecimal getBasePricePerKm() {
+        return basePricePerKm;
+    }
+    
+    public BigDecimal getMinimumFare() {
+        return minimumFare;
+    }
+    
+    public BigDecimal getMaximumFare() {
+        return maximumFare;
+    }
+    
+    public BigDecimal getPeakHourMultiplier() {
+        return peakHourMultiplier;
+    }
+    
+    public BigDecimal getOffPeakHourMultiplier() {
+        return offPeakHourMultiplier;
+    }
 
-
+    public void setBasePricePerKm(BigDecimal basePricePerKm) {
+        this.basePricePerKm = basePricePerKm;
+    }
 
 } 

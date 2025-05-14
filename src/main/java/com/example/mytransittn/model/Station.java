@@ -36,6 +36,6 @@ public class Station {
     private StationStatus status;
 
     public enum StationStatus { OPEN, CLOSED, UNDER_MAINTENANCE }
-
+    
 
 } 

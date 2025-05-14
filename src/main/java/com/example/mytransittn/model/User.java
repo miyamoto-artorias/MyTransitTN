@@ -52,5 +52,9 @@ public class User {
     @OneToMany(mappedBy = "user")
     private Set<Payment> payments = new HashSet<>();
 
+    public boolean isAdmin() {
+        return ROLE_ADMIN.equals(this.role);
+    }
+    
 
 }

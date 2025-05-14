@@ -1,6 +1,7 @@
 package com.example.mytransittn.service;
 
 import com.example.mytransittn.model.*;
+import com.example.mytransittn.repository.LineRepository;
 import com.example.mytransittn.repository.StationRepository;
 import org.springframework.stereotype.Service;
 
@@ -10,10 +11,12 @@ import java.util.stream.Collectors;
 @Service
 public class NavigationService {
     private final StationRepository stationRepository;
+    private final LineRepository lineRepository;
     private final FareCalculationService fareCalculationService;
 
-    public NavigationService(StationRepository stationRepository, FareCalculationService fareCalculationService) {
+    public NavigationService(StationRepository stationRepository, LineRepository lineRepository, FareCalculationService fareCalculationService) {
         this.stationRepository = stationRepository;
+        this.lineRepository = lineRepository;
         this.fareCalculationService = fareCalculationService;
     }
 
@@ -171,10 +174,9 @@ public class NavigationService {
         return commonLines.isEmpty() ? null : commonLines.iterator().next();
     }
     
-    // Helper method to get all lines - would be injected in a real application
+    // Helper method to get all lines
     private List<Line> getAllLines() {
-        // This is a placeholder - in a real app, you'd inject a LineRepository
-        return Collections.emptyList();
+        return lineRepository.findAllWithStations();
     }
     
     // Edge class for graph representation
