@@ -1,6 +1,7 @@
 package com.example.mytransittn.service;
 
 
+import com.example.mytransittn.model.User;
 import com.example.mytransittn.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;

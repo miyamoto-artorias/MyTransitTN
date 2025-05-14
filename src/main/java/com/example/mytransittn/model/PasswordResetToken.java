@@ -1,8 +1,6 @@
 package com.example.mytransittn.model;
 
 import jakarta.persistence.*;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.relational.core.mapping.Column;
 
 import java.time.LocalDateTime;
 
