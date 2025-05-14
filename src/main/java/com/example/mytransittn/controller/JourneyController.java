@@ -7,13 +7,16 @@ import com.example.mytransittn.repository.JourneyRepository;
 import com.example.mytransittn.repository.LineRepository;
 import com.example.mytransittn.repository.StationRepository;
 import com.example.mytransittn.repository.UserRepository;
+import com.example.mytransittn.service.FareCalculationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -27,14 +30,17 @@ public class JourneyController {
     private final UserRepository userRepository;
     private final StationRepository stationRepository;
     private final LineRepository lineRepository;
+    private final FareCalculationService fareCalculationService;
 
     @Autowired
     public JourneyController(JourneyRepository journeyRepository, UserRepository userRepository,
-                            StationRepository stationRepository, LineRepository lineRepository) {
+                            StationRepository stationRepository, LineRepository lineRepository,
+                            FareCalculationService fareCalculationService) {
         this.journeyRepository = journeyRepository;
         this.userRepository = userRepository;
         this.stationRepository = stationRepository;
         this.lineRepository = lineRepository;
+        this.fareCalculationService = fareCalculationService;
     }
 
     @GetMapping
@@ -110,20 +116,41 @@ public class JourneyController {
     }
 
     @PutMapping("/{id}/complete")
+    @Transactional
     public ResponseEntity<JourneyDto> completeJourney(@PathVariable Long id) {
-        ResponseEntity<JourneyDto> response = updateJourneyStatus(id, Journey.JourneyStatus.COMPLETED);
+        Optional<Journey> journeyOpt = journeyRepository.findById(id);
         
-        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-            Optional<Journey> journeyOpt = journeyRepository.findById(id);
-            if (journeyOpt.isPresent()) {
-                Journey journey = journeyOpt.get();
-                journey.setEndTime(LocalDateTime.now());
-                journeyRepository.save(journey);
-                return ResponseEntity.ok(JourneyDto.fromEntity(journey));
-            }
+        if (journeyOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
         }
         
-        return response;
+        Journey journey = journeyOpt.get();
+        User currentUser = getCurrentUser();
+        
+        if (currentUser == null || !journey.getUser().equals(currentUser)) {
+            return ResponseEntity.status(403).build();
+        }
+        
+        // Set required fields
+        journey.setStatus(Journey.JourneyStatus.COMPLETED);
+        journey.setEndTime(LocalDateTime.now());
+        
+        // Calculate fare and distance
+        try {
+            double distance = fareCalculationService.computeDistance(
+                journey.getStartStation(), journey.getEndStation());
+            journey.setDistanceKm(distance);
+            
+            BigDecimal fare = fareCalculationService.calculateFare(journey);
+            journey.setFare(fare);
+        } catch (Exception e) {
+            System.err.println("Failed to calculate fare: " + e.getMessage());
+            // Even if calculation fails, still mark journey as completed
+        }
+        
+        // Save the journey
+        Journey updatedJourney = journeyRepository.save(journey);
+        return ResponseEntity.ok(JourneyDto.fromEntity(updatedJourney));
     }
 
     @PutMapping("/{id}/cancel")

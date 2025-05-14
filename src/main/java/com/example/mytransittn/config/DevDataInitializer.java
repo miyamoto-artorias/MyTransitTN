@@ -1,6 +1,8 @@
 package com.example.mytransittn.config;
 
+import com.example.mytransittn.model.FareConfiguration;
 import com.example.mytransittn.model.User;
+import com.example.mytransittn.repository.FareConfigurationRepository;
 import com.example.mytransittn.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,11 +23,15 @@ import java.util.Optional;
 public class DevDataInitializer {
 
     private final UserRepository userRepository;
+    private final FareConfigurationRepository fareConfigRepository;
     private final BCryptPasswordEncoder passwordEncoder;
 
     @Autowired
-    public DevDataInitializer(UserRepository userRepository, BCryptPasswordEncoder passwordEncoder) {
+    public DevDataInitializer(UserRepository userRepository, 
+                             FareConfigurationRepository fareConfigRepository,
+                             BCryptPasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.fareConfigRepository = fareConfigRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -35,6 +41,8 @@ public class DevDataInitializer {
         createUserIfNotExists("user", "user@transit.tn", "password", User.ROLE_USER);
         createUserIfNotExists("user1", "user1@gmail.com", "password", User.ROLE_USER);
         createUserIfNotExists("user2", "user2@gmail.com", "password", User.ROLE_USER);
+        
+        createDefaultFareConfigurationIfNotExists();
     }
 
     private void createUserIfNotExists(String username, String email, String password, String role) {
@@ -53,4 +61,23 @@ public class DevDataInitializer {
             System.out.println("Created test user: " + email);
         }
     }
-} 
+    
+    private void createDefaultFareConfigurationIfNotExists() {
+        // Check if any active config exists
+        Optional<FareConfiguration> existingConfig = fareConfigRepository.findActiveConfig(LocalDateTime.now());
+        
+        if (existingConfig.isEmpty()) {
+            FareConfiguration config = new FareConfiguration();
+            config.setBasePricePerKm(BigDecimal.valueOf(0.5));  // Base price per km
+            config.setMinimumFare(BigDecimal.valueOf(1.0));     // Minimum fare
+            config.setMaximumFare(BigDecimal.valueOf(20.0));    // Maximum fare
+            config.setPeakHourMultiplier(BigDecimal.valueOf(1.5)); // 50% more during peak hours
+            config.setOffPeakHourMultiplier(BigDecimal.valueOf(1.0)); // Normal price during off-peak
+            config.setEffectiveFrom(LocalDateTime.now());
+            config.setStatus(FareConfiguration.ConfigStatus.ACTIVE);
+            
+            fareConfigRepository.save(config);
+            System.out.println("Created default fare configuration");
+        }
+    }
+}
