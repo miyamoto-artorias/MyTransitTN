@@ -126,13 +126,8 @@ public class JourneyController {
     }
 
     @PutMapping("/{id}/start")
-    public ResponseEntity<JourneyDto> startJourney(@PathVariable Long id) {
-        return updateJourneyStatus(id, Journey.JourneyStatus.IN_PROGRESS);
-    }
-
-    @PutMapping("/{id}/complete")
     @Transactional
-    public ResponseEntity<JourneyDto> completeJourney(@PathVariable Long id) {
+    public ResponseEntity<JourneyDto> startJourney(@PathVariable Long id) {
         Optional<Journey> journeyOpt = journeyRepository.findById(id);
         
         if (journeyOpt.isEmpty()) {
@@ -146,31 +141,95 @@ public class JourneyController {
             return ResponseEntity.status(403).build();
         }
         
-        // Set required fields
-        journey.setStatus(Journey.JourneyStatus.COMPLETED);
-        journey.setEndTime(LocalDateTime.now());
-        
-        // Calculate fare and distance
-        try {
-            double distance = fareCalculationService.computeDistance(
-                journey.getStartStation(), journey.getEndStation(), journey);
-            journey.setDistanceKm(distance);
-            
-            BigDecimal fare = fareCalculationService.calculateFare(journey);
-            journey.setFare(fare);
-        } catch (Exception e) {
-            System.err.println("Failed to calculate fare: " + e.getMessage());
-            // Even if calculation fails, still mark journey as completed
+        // Only PLANNED journeys can be started
+        if (journey.getStatus() != Journey.JourneyStatus.PLANNED) {
+            return ResponseEntity.badRequest().build();
         }
         
-        // Save the journey
+        journey.setStatus(Journey.JourneyStatus.IN_PROGRESS);
+        journey.setStartTime(LocalDateTime.now()); // Update start time to now
+        
         Journey updatedJourney = journeyRepository.save(journey);
         return ResponseEntity.ok(JourneyDto.fromEntity(updatedJourney));
     }
 
+    @PutMapping("/{id}/complete")
+    @Transactional(rollbackFor = Exception.class)
+    public ResponseEntity<JourneyDto> completeJourney(@PathVariable Long id) {
+        try {
+            Optional<Journey> journeyOpt = journeyRepository.findById(id);
+            
+            if (journeyOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            Journey journey = journeyOpt.get();
+            User currentUser = getCurrentUser();
+            
+            if (currentUser == null || !journey.getUser().equals(currentUser)) {
+                return ResponseEntity.status(403).build();
+            }
+            
+            // Only IN_PROGRESS or PLANNED journeys can be completed
+            if (journey.getStatus() != Journey.JourneyStatus.IN_PROGRESS && 
+                journey.getStatus() != Journey.JourneyStatus.PLANNED) {
+                return ResponseEntity.badRequest().build();
+            }
+            
+            // Set required fields
+            journey.setStatus(Journey.JourneyStatus.COMPLETED);
+            journey.setEndTime(LocalDateTime.now());
+            
+            // Save the journey - this will trigger the JourneyListener to calculate fare
+            Journey updatedJourney = journeyRepository.saveAndFlush(journey);
+            
+            // If fare calculation failed in the listener, do it manually
+            if (updatedJourney.getFare() == null || updatedJourney.getDistanceKm() == null) {
+                double distance = fareCalculationService.computeDistance(
+                    journey.getStartStation(), journey.getEndStation(), journey);
+                updatedJourney.setDistanceKm(distance);
+                
+                BigDecimal fare = fareCalculationService.calculateFare(updatedJourney);
+                updatedJourney.setFare(fare);
+                
+                updatedJourney = journeyRepository.saveAndFlush(updatedJourney);
+            }
+            
+            return ResponseEntity.ok(JourneyDto.fromEntity(updatedJourney));
+        } catch (Exception e) {
+            // Log the exception for debugging
+            e.printStackTrace();
+            JourneyDto errorDto = new JourneyDto();
+            errorDto.setError("Failed to complete journey: " + e.getMessage());
+            return ResponseEntity.status(500).body(errorDto);
+        }
+    }
+
     @PutMapping("/{id}/cancel")
+    @Transactional
     public ResponseEntity<JourneyDto> cancelJourney(@PathVariable Long id) {
-        return updateJourneyStatus(id, Journey.JourneyStatus.CANCELLED);
+        Optional<Journey> journeyOpt = journeyRepository.findById(id);
+        
+        if (journeyOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        
+        Journey journey = journeyOpt.get();
+        User currentUser = getCurrentUser();
+        
+        if (currentUser == null || !journey.getUser().equals(currentUser)) {
+            return ResponseEntity.status(403).build();
+        }
+        
+        // Only journeys that aren't already COMPLETED or CANCELLED can be cancelled
+        if (journey.getStatus() == Journey.JourneyStatus.COMPLETED || 
+            journey.getStatus() == Journey.JourneyStatus.CANCELLED) {
+            return ResponseEntity.badRequest().build();
+        }
+        
+        journey.setStatus(Journey.JourneyStatus.CANCELLED);
+        Journey updatedJourney = journeyRepository.save(journey);
+        return ResponseEntity.ok(JourneyDto.fromEntity(updatedJourney));
     }
 
     @GetMapping("/status/{status}")
@@ -209,25 +268,6 @@ public class JourneyController {
             .collect(Collectors.toList());
             
         return ResponseEntity.ok(journeyDtos);
-    }
-
-    private ResponseEntity<JourneyDto> updateJourneyStatus(Long id, Journey.JourneyStatus status) {
-        Optional<Journey> journeyOpt = journeyRepository.findById(id);
-        
-        if (journeyOpt.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        
-        Journey journey = journeyOpt.get();
-        User currentUser = getCurrentUser();
-        
-        if (currentUser == null || !journey.getUser().equals(currentUser)) {
-            return ResponseEntity.status(403).build();
-        }
-        
-        journey.setStatus(status);
-        Journey updatedJourney = journeyRepository.save(journey);
-        return ResponseEntity.ok(JourneyDto.fromEntity(updatedJourney));
     }
 
     private User getCurrentUser() {

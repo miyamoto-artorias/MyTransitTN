@@ -1,12 +1,18 @@
 package com.example.mytransittn.dto;
 
 import com.example.mytransittn.model.Journey;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class JourneyDto {
     private Long id;
     private StationSummaryDto startStation;
@@ -18,6 +24,7 @@ public class JourneyDto {
     private BigDecimal fare;
     private LineSummaryDto line;
     private UserSummaryDto user;
+    private String error; // For error messages
 
     public static JourneyDto fromEntity(Journey journey) {
         if (journey == null) {

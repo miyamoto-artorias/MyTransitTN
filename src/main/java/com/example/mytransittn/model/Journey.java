@@ -59,9 +59,20 @@ public class Journey {
         @PrePersist @PreUpdate
         public void onSave(Journey j) {
             if (j.getStatus() == JourneyStatus.COMPLETED && j.getEndTime() != null && fareService != null) {
-                j.setDistanceKm(fareService.computeDistance(
-                        j.getStartStation(), j.getEndStation()));
-                j.setFare(fareService.calculateFare(j));
+                try {
+                    // Try to calculate using the new method first
+                    j.setDistanceKm(fareService.computeDistance(
+                            j.getStartStation(), j.getEndStation(), j));
+                } catch (Exception e) {
+                    // Fall back to the old method if there's an error
+                    j.setDistanceKm(fareService.computeDistance(
+                            j.getStartStation(), j.getEndStation()));
+                }
+                
+                // Only calculate fare if distance was set
+                if (j.getDistanceKm() != null) {
+                    j.setFare(fareService.calculateFare(j));
+                }
             }
         }
     }
