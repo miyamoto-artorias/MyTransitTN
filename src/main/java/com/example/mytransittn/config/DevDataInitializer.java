@@ -1,10 +1,12 @@
 package com.example.mytransittn.config;
 
 import com.example.mytransittn.model.FareConfiguration;
+import com.example.mytransittn.model.Line;
 import com.example.mytransittn.model.State;
 import com.example.mytransittn.model.Station;
 import com.example.mytransittn.model.User;
 import com.example.mytransittn.repository.FareConfigurationRepository;
+import com.example.mytransittn.repository.LineRepository;
 import com.example.mytransittn.repository.StateRepository;
 import com.example.mytransittn.repository.StationRepository;
 import com.example.mytransittn.repository.UserRepository;
@@ -16,6 +18,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -31,18 +35,21 @@ public class DevDataInitializer {
     private final BCryptPasswordEncoder passwordEncoder;
     private final StationRepository stationRepository;
     private final StateRepository stateRepository;
+    private final LineRepository lineRepository;
 
     @Autowired
     public DevDataInitializer(UserRepository userRepository, 
                              FareConfigurationRepository fareConfigRepository,
                              BCryptPasswordEncoder passwordEncoder,
                              StationRepository stationRepository,
-                             StateRepository stateRepository) {
+                             StateRepository stateRepository,
+                             LineRepository lineRepository) {
         this.userRepository = userRepository;
         this.fareConfigRepository = fareConfigRepository;
         this.passwordEncoder = passwordEncoder;
         this.stationRepository = stationRepository;
         this.stateRepository = stateRepository;
+        this.lineRepository = lineRepository;
     }
 
     @PostConstruct
@@ -58,6 +65,9 @@ public class DevDataInitializer {
         State defaultState = createDefaultStateIfNotExists();
         
         createStationsIfNotExist(defaultState);
+        
+        // Create transit lines after stations are created
+        createTransitLinesIfNotExist();
     }
 
     private void createUserIfNotExists(String username, String email, String password, String role) {
@@ -136,5 +146,56 @@ public class DevDataInitializer {
             stationRepository.save(station);
             System.out.println("Created station: " + name);
         }
+    }
+    
+    private void createTransitLinesIfNotExist() {
+        // Check if lines already exist
+        if (lineRepository.findByCode("line1").isPresent() &&
+            lineRepository.findByCode("line2").isPresent() &&
+            lineRepository.findByCode("line3").isPresent()) {
+            return;
+        }
+
+        // Line 1: Tunis -> Binzert -> Nabeel -> Zaghouan
+        createLineIfNotExists("line1", 
+            List.of("Tunis", "Binzert", "Nabeel", "Zaghouan"));
+        
+        // Line 2: Zaghouan -> Soussa -> Mahdia
+        createLineIfNotExists("line2", 
+            List.of("Zaghouan", "Soussa", "Mahdia"));
+        
+        // Line 3: Mahdia -> Sfax -> Qurwen -> Sidi Bouzide
+        createLineIfNotExists("line3", 
+            List.of("Mahdia", "Sfax", "Qurwen", "Sidi Bouzide"));
+        
+        System.out.println("Initialized transit lines");
+    }
+    
+    private void createLineIfNotExists(String code, List<String> stationNames) {
+        // Skip if line already exists
+        if (lineRepository.findByCode(code).isPresent()) {
+            System.out.println("Line " + code + " already exists, skipping");
+            return;
+        }
+        
+        Line line = new Line();
+        line.setCode(code);
+        line.setFareMultiplier(BigDecimal.valueOf(1.0)); // Standard fare
+        
+        // Get stations by name
+        List<Station> stationsForLine = new ArrayList<>();
+        for (String stationName : stationNames) {
+            Optional<Station> stationOpt = stationRepository.findByName(stationName);
+            if (stationOpt.isPresent()) {
+                stationsForLine.add(stationOpt.get());
+            } else {
+                System.out.println("Warning: Station " + stationName + " not found for line " + code);
+            }
+        }
+        
+        line.setStations(stationsForLine);
+        
+        lineRepository.save(line);
+        System.out.println("Created line: " + code + " with " + stationsForLine.size() + " stations");
     }
 }
