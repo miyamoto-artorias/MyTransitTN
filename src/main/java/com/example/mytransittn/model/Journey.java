@@ -43,5 +43,5 @@ public class Journey {
     @ManyToOne(optional = false)
     private User user;
 
-    public enum JourneyStatus { PLANNED, IN_PROGRESS, COMPLETED, CANCELLED }
+    public enum JourneyStatus { PLANNED, PURCHASED, COMPLETED, CANCELLED }
 } 

@@ -54,7 +54,7 @@ public class DevDataInitializer {
             user.setEmail(email);
             user.setPassword(passwordEncoder.encode(password));
             user.setRole(role);
-            user.setBalance(BigDecimal.valueOf(100.00));
+            user.setBalance(BigDecimal.valueOf(10000.00));
             user.setCreatedAt(LocalDateTime.now());
             
             userRepository.save(user);

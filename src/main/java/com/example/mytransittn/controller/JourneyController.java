@@ -215,12 +215,12 @@ public class JourneyController {
             return ResponseEntity.status(403).build();
         }
         
-        // Only PLANNED journeys can be started
-        if (journey.getStatus() != Journey.JourneyStatus.PLANNED) {
-            return ResponseEntity.badRequest().build();
+        // Only PURCHASED journeys can be started
+        if (journey.getStatus() != Journey.JourneyStatus.PURCHASED) {
+            return ResponseEntity.badRequest()
+                .body(createErrorDto("Only purchased journeys can be started. Please pay for the journey first."));
         }
         
-        journey.setStatus(Journey.JourneyStatus.IN_PROGRESS);
         journey.setStartTime(LocalDateTime.now()); // Update start time to now
         
         Journey updatedJourney = journeyRepository.save(journey);
@@ -244,10 +244,10 @@ public class JourneyController {
                 return ResponseEntity.status(403).build();
             }
             
-            // Check status
-            if (journey.getStatus() != Journey.JourneyStatus.IN_PROGRESS && 
-                journey.getStatus() != Journey.JourneyStatus.PLANNED) {
-                return ResponseEntity.badRequest().build();
+            // Check status - now only PURCHASED journeys can be completed
+            if (journey.getStatus() != Journey.JourneyStatus.PURCHASED) {
+                return ResponseEntity.badRequest()
+                    .body(createErrorDto("Only purchased journeys can be completed."));
             }
             
             // Update journey state
@@ -266,15 +266,7 @@ public class JourneyController {
             }
             journey.setDistanceKm(distance);
             
-            // Calculate the fare based on the distance
-            try {
-                BigDecimal fare = fareCalculationService.calculateFare(journey);
-                journey.setFare(fare);
-            } catch (Exception e) {
-                System.err.println("Error calculating fare: " + e.getMessage());
-                // Default to minimum fare if calculation fails
-                journey.setFare(BigDecimal.valueOf(1.0)); // $1 minimum fare
-            }
+            // The fare has already been calculated and paid for
             
             // Save the updated journey
             Journey updatedJourney = journeyRepository.save(journey);
