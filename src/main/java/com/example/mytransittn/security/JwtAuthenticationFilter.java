@@ -34,15 +34,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         try {
             String jwt = parseJwt(request);
-            if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
-                String username = jwtUtils.getUsernameFromJwtToken(jwt);
-
-                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        userDetails, null, userDetails.getAuthorities());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+            
+            // Log the request details in development mode
+            if (request.getRequestURI().contains("/api/journeys")) {
+                logger.info("Request to /api/journeys with JWT: {}", 
+                    jwt != null ? "Present" : "Not present");
+                logger.info("Auth header: {}", request.getHeader("Authorization"));
+            }
+            
+            if (jwt != null) {
+                try {
+                    if (jwtUtils.validateJwtToken(jwt)) {
+                        String username = jwtUtils.getUsernameFromJwtToken(jwt);
+                        logger.info("Processing JWT for user: {}", username);
+                        
+                        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                                userDetails, null, userDetails.getAuthorities());
+                        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+    
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                        logger.info("Successfully authenticated user {}", username);
+                    } else {
+                        logger.warn("JWT validation failed");
+                    }
+                } catch (Exception e) {
+                    logger.warn("JWT processing error: {}", e.getMessage());
+                }
             }
         } catch (Exception e) {
             logger.error("Cannot set user authentication: {}", e.getMessage());

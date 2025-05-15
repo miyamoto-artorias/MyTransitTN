@@ -67,6 +67,9 @@ public class SecurityConfig {
                     .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
                     .defaultSuccessUrl("http://localhost:4200/dashboard", true)
                 );
+                
+            // Still add JWT filter to process tokens in Swagger API calls
+            http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         } else {
             // Production mode configuration - full security with JWT
             http.cors(withDefaults())

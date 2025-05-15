@@ -2,6 +2,7 @@ package com.example.mytransittn.controller;
 
 import com.example.mytransittn.dto.JourneyDto;
 import com.example.mytransittn.model.Journey;
+import com.example.mytransittn.model.Station;
 import com.example.mytransittn.model.User;
 import com.example.mytransittn.repository.JourneyRepository;
 import com.example.mytransittn.repository.LineRepository;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -76,32 +78,104 @@ public class JourneyController {
     }
 
     @PostMapping
-    public ResponseEntity<JourneyDto> createJourney(@RequestBody JourneyDto.JourneyRequestDto request) {
-        User user = getCurrentUser();
-        if (user == null) {
-            return ResponseEntity.badRequest().build();
+    public ResponseEntity<?> createJourney(@RequestBody JourneyDto.JourneyRequestDto request) {
+        // Get the raw authentication - don't check properties yet
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        System.out.println("Authentication details: " + 
+            (auth != null ? 
+             "Name: " + auth.getName() + 
+             ", Principal: " + auth.getPrincipal() + 
+             ", Authenticated: " + auth.isAuthenticated() +
+             ", Authorities: " + auth.getAuthorities() 
+             : "null"));
+        
+        // Check if user is authenticated
+        if (auth == null || !auth.isAuthenticated() || 
+            "anonymousUser".equals(auth.getPrincipal().toString())) {
+            System.out.println("User not authenticated, returning 401");
+            return ResponseEntity.status(401)
+                .body(Map.of("error", "User not authenticated", 
+                             "message", "Please use the Authorize button in Swagger UI and enter your JWT token with Bearer prefix"));
         }
+
+        // Try to get current user from repository
+        User user = userRepository.findByEmail(auth.getName())
+            .orElse(null);
+        
+        if (user == null) {
+            System.out.println("User not found in database despite authentication: " + auth.getName());
+            return ResponseEntity.status(401)
+                .body(Map.of("error", "User not found", 
+                             "message", "Your authentication was accepted but user data could not be found"));
+        }
+        
+        System.out.println("User authenticated: " + user.getUsername() + " (ID: " + user.getId() + ")");
 
         // Validate request
         if (request.getStartStationId() == null || request.getEndStationId() == null || 
             request.getLineId() == null) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "Missing required fields"));
         }
 
         // Find stations and line
-        var startStation = stationRepository.findById(request.getStartStationId());
-        var endStation = stationRepository.findById(request.getEndStationId());
-        var line = lineRepository.findById(request.getLineId());
+        var startStationOpt = stationRepository.findById(request.getStartStationId());
+        var endStationOpt = stationRepository.findById(request.getEndStationId());
+        var lineOpt = lineRepository.findById(request.getLineId());
 
-        if (startStation.isEmpty() || endStation.isEmpty() || line.isEmpty()) {
-            return ResponseEntity.badRequest().build();
+        // Validate entities exist
+        if (startStationOpt.isEmpty()) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "Start station not found (ID: " + request.getStartStationId() + ")"));
         }
-
+        
+        if (endStationOpt.isEmpty()) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "End station not found (ID: " + request.getEndStationId() + ")"));
+        }
+        
+        if (lineOpt.isEmpty()) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "Line not found (ID: " + request.getLineId() + ")"));
+        }
+        
+        var startStation = startStationOpt.get();
+        var endStation = endStationOpt.get();
+        var line = lineOpt.get();
+        
+        // Validate that both stations are on the selected line
+        boolean startOnLine = false;
+        boolean endOnLine = false;
+        int startIndex = -1;
+        int endIndex = -1;
+        
+        List<Station> lineStations = line.getStations();
+        for (int i = 0; i < lineStations.size(); i++) {
+            if (lineStations.get(i).getId().equals(startStation.getId())) {
+                startOnLine = true;
+                startIndex = i;
+            }
+            if (lineStations.get(i).getId().equals(endStation.getId())) {
+                endOnLine = true;
+                endIndex = i;
+            }
+        }
+        
+        if (!startOnLine) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "Start station is not on the selected line"));
+        }
+        
+        if (!endOnLine) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "End station is not on the selected line"));
+        }
+        
         // Create journey
         Journey journey = new Journey();
-        journey.setStartStation(startStation.get());
-        journey.setEndStation(endStation.get());
-        journey.setLine(line.get());
+        journey.setStartStation(startStation);
+        journey.setEndStation(endStation);
+        journey.setLine(line);
         journey.setUser(user);
         journey.setStartTime(LocalDateTime.now());
         journey.setStatus(Journey.JourneyStatus.PLANNED);
@@ -109,7 +183,7 @@ public class JourneyController {
         // Calculate distance for the journey
         try {
             double distance = fareCalculationService.computeDistance(
-                startStation.get(), endStation.get(), journey);
+                startStation, endStation, journey);
             journey.setDistanceKm(distance);
             
             // Pre-calculate fare for informational purposes
@@ -285,5 +359,12 @@ public class JourneyController {
         }
         
         return userRepository.findByEmail(auth.getName()).orElse(null);
+    }
+
+    // Helper method to create error DTOs
+    private JourneyDto createErrorDto(String errorMessage) {
+        JourneyDto errorDto = new JourneyDto();
+        errorDto.setError(errorMessage);
+        return errorDto;
     }
 } 
