@@ -10,10 +10,6 @@ import java.time.LocalDateTime;
 public class FareConfigurationDto {
     private Long id;
     private BigDecimal basePricePerKm;
-    private BigDecimal minimumFare;
-    private BigDecimal maximumFare;
-    private BigDecimal peakHourMultiplier;
-    private BigDecimal offPeakHourMultiplier;
     private LocalDateTime effectiveFrom;
     private LocalDateTime effectiveTo;
     private FareConfiguration.ConfigStatus status;
@@ -26,10 +22,6 @@ public class FareConfigurationDto {
         FareConfigurationDto dto = new FareConfigurationDto();
         dto.setId(fareConfiguration.getId());
         dto.setBasePricePerKm(fareConfiguration.getBasePricePerKm());
-        dto.setMinimumFare(fareConfiguration.getMinimumFare());
-        dto.setMaximumFare(fareConfiguration.getMaximumFare());
-        dto.setPeakHourMultiplier(fareConfiguration.getPeakHourMultiplier());
-        dto.setOffPeakHourMultiplier(fareConfiguration.getOffPeakHourMultiplier());
         dto.setEffectiveFrom(fareConfiguration.getEffectiveFrom());
         dto.setEffectiveTo(fareConfiguration.getEffectiveTo());
         dto.setStatus(fareConfiguration.getStatus());

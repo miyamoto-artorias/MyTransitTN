@@ -42,19 +42,13 @@ public class FareAdminController {
         }
         
         // Validate request
-        if (request.getBasePricePerKm() == null || request.getMinimumFare() == null || 
-            request.getMaximumFare() == null || request.getPeakHourMultiplier() == null || 
-            request.getOffPeakHourMultiplier() == null) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Missing required fields"));
+        if (request.getBasePricePerKm() == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Base price per km is required"));
         }
         
         // Create fare configuration
         FareConfiguration fareConfig = new FareConfiguration();
         fareConfig.setBasePricePerKm(request.getBasePricePerKm());
-        fareConfig.setMinimumFare(request.getMinimumFare());
-        fareConfig.setMaximumFare(request.getMaximumFare());
-        fareConfig.setPeakHourMultiplier(request.getPeakHourMultiplier());
-        fareConfig.setOffPeakHourMultiplier(request.getOffPeakHourMultiplier());
         fareConfig.setEffectiveFrom(request.getEffectiveFrom() != null ? 
                 request.getEffectiveFrom() : LocalDateTime.now());
         fareConfig.setEffectiveTo(request.getEffectiveTo());
@@ -96,22 +90,6 @@ public class FareAdminController {
         // Update fields if provided
         if (request.getBasePricePerKm() != null) {
             fareConfig.setBasePricePerKm(request.getBasePricePerKm());
-        }
-        
-        if (request.getMinimumFare() != null) {
-            fareConfig.setMinimumFare(request.getMinimumFare());
-        }
-        
-        if (request.getMaximumFare() != null) {
-            fareConfig.setMaximumFare(request.getMaximumFare());
-        }
-        
-        if (request.getPeakHourMultiplier() != null) {
-            fareConfig.setPeakHourMultiplier(request.getPeakHourMultiplier());
-        }
-        
-        if (request.getOffPeakHourMultiplier() != null) {
-            fareConfig.setOffPeakHourMultiplier(request.getOffPeakHourMultiplier());
         }
         
         if (request.getEffectiveFrom() != null) {
@@ -178,10 +156,6 @@ public class FareAdminController {
     // Request DTO for fare configuration
     static class FareConfigRequest {
         private BigDecimal basePricePerKm;
-        private BigDecimal minimumFare;
-        private BigDecimal maximumFare;
-        private BigDecimal peakHourMultiplier;
-        private BigDecimal offPeakHourMultiplier;
         private LocalDateTime effectiveFrom;
         private LocalDateTime effectiveTo;
         private FareConfiguration.ConfigStatus status;
@@ -192,38 +166,6 @@ public class FareAdminController {
         
         public void setBasePricePerKm(BigDecimal basePricePerKm) {
             this.basePricePerKm = basePricePerKm;
-        }
-        
-        public BigDecimal getMinimumFare() {
-            return minimumFare;
-        }
-        
-        public void setMinimumFare(BigDecimal minimumFare) {
-            this.minimumFare = minimumFare;
-        }
-        
-        public BigDecimal getMaximumFare() {
-            return maximumFare;
-        }
-        
-        public void setMaximumFare(BigDecimal maximumFare) {
-            this.maximumFare = maximumFare;
-        }
-        
-        public BigDecimal getPeakHourMultiplier() {
-            return peakHourMultiplier;
-        }
-        
-        public void setPeakHourMultiplier(BigDecimal peakHourMultiplier) {
-            this.peakHourMultiplier = peakHourMultiplier;
-        }
-        
-        public BigDecimal getOffPeakHourMultiplier() {
-            return offPeakHourMultiplier;
-        }
-        
-        public void setOffPeakHourMultiplier(BigDecimal offPeakHourMultiplier) {
-            this.offPeakHourMultiplier = offPeakHourMultiplier;
         }
         
         public LocalDateTime getEffectiveFrom() {

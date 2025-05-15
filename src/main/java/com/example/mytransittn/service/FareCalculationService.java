@@ -79,6 +79,9 @@ public class FareCalculationService {
         return openRouteService.calculateDistance(a, b);
     }
 
+    /**
+     * Calculate fare based on a simplified flat rate per kilometer
+     */
     public BigDecimal calculateFare(Journey j) {
         FareConfiguration cfg = fareConfigRepo.findActiveConfig(LocalDateTime.now())
                 .orElseThrow(() -> new IllegalStateException("No active fare configuration"));
@@ -88,35 +91,9 @@ public class FareCalculationService {
             j.setDistanceKm(computeDistance(j.getStartStation(), j.getEndStation(), j));
         }
 
-        // 1. Base distance fare
-        BigDecimal distFare = cfg.getBasePricePerKm()
-                .multiply(BigDecimal.valueOf(j.getDistanceKm()));
-
-        // 2. Line multiplier
-        BigDecimal lineMul = j.getLine().getFareMultiplier();
-
-        // 3. State multiplier (average start/end)
-        BigDecimal s1 = j.getStartStation().getState().getPriceMultiplier();
-        BigDecimal s2 = j.getEndStation().getState().getPriceMultiplier();
-        BigDecimal stateMul = s1.add(s2).divide(BigDecimal.valueOf(2), RoundingMode.HALF_UP);
-
-        BigDecimal base = distFare.multiply(lineMul).multiply(stateMul);
-
-        // 4. Peak/off-peak
-        boolean isPeak = isPeakHour(j.getStartTime());
-        BigDecimal timeMul = isPeak
-                ? cfg.getPeakHourMultiplier()
-                : cfg.getOffPeakHourMultiplier();
-        BigDecimal fare = base.multiply(timeMul);
-
-        // 5. Apply min/max caps
-        return fare.max(cfg.getMinimumFare())
-                .min(cfg.getMaximumFare())
+        // Simple price calculation: basePricePerKm * distance
+        return cfg.getBasePricePerKm()
+                .multiply(BigDecimal.valueOf(j.getDistanceKm()))
                 .setScale(2, RoundingMode.HALF_UP);
-    }
-
-    private boolean isPeakHour(LocalDateTime time) {
-        int hour = time.getHour();
-        return (hour >= 7 && hour < 9) || (hour >= 17 && hour < 19);
     }
 } 

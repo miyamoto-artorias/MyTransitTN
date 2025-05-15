@@ -68,16 +68,12 @@ public class DevDataInitializer {
         
         if (existingConfig.isEmpty()) {
             FareConfiguration config = new FareConfiguration();
-            config.setBasePricePerKm(BigDecimal.valueOf(0.5));  // Base price per km
-            config.setMinimumFare(BigDecimal.valueOf(1.0));     // Minimum fare
-            config.setMaximumFare(BigDecimal.valueOf(20.0));    // Maximum fare
-            config.setPeakHourMultiplier(BigDecimal.valueOf(1.5)); // 50% more during peak hours
-            config.setOffPeakHourMultiplier(BigDecimal.valueOf(1.0)); // Normal price during off-peak
+            config.setBasePricePerKm(BigDecimal.valueOf(0.5));  // $0.50 per kilometer
             config.setEffectiveFrom(LocalDateTime.now());
             config.setStatus(FareConfiguration.ConfigStatus.ACTIVE);
             
             fareConfigRepository.save(config);
-            System.out.println("Created default fare configuration");
+            System.out.println("Created default fare configuration with rate: $0.50 per kilometer");
         }
     }
 }
