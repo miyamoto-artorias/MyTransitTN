@@ -1,8 +1,12 @@
 package com.example.mytransittn.config;
 
 import com.example.mytransittn.model.FareConfiguration;
+import com.example.mytransittn.model.State;
+import com.example.mytransittn.model.Station;
 import com.example.mytransittn.model.User;
 import com.example.mytransittn.repository.FareConfigurationRepository;
+import com.example.mytransittn.repository.StateRepository;
+import com.example.mytransittn.repository.StationRepository;
 import com.example.mytransittn.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,14 +29,20 @@ public class DevDataInitializer {
     private final UserRepository userRepository;
     private final FareConfigurationRepository fareConfigRepository;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final StationRepository stationRepository;
+    private final StateRepository stateRepository;
 
     @Autowired
     public DevDataInitializer(UserRepository userRepository, 
                              FareConfigurationRepository fareConfigRepository,
-                             BCryptPasswordEncoder passwordEncoder) {
+                             BCryptPasswordEncoder passwordEncoder,
+                             StationRepository stationRepository,
+                             StateRepository stateRepository) {
         this.userRepository = userRepository;
         this.fareConfigRepository = fareConfigRepository;
         this.passwordEncoder = passwordEncoder;
+        this.stationRepository = stationRepository;
+        this.stateRepository = stateRepository;
     }
 
     @PostConstruct
@@ -43,6 +53,11 @@ public class DevDataInitializer {
         createUserIfNotExists("user2", "user2@gmail.com", "password", User.ROLE_USER);
         
         createDefaultFareConfigurationIfNotExists();
+        
+        // Create default state before stations
+        State defaultState = createDefaultStateIfNotExists();
+        
+        createStationsIfNotExist(defaultState);
     }
 
     private void createUserIfNotExists(String username, String email, String password, String role) {
@@ -74,6 +89,52 @@ public class DevDataInitializer {
             
             fareConfigRepository.save(config);
             System.out.println("Created default fare configuration with rate: $0.50 per kilometer");
+        }
+    }
+    
+    private State createDefaultStateIfNotExists() {
+        // Create a default state for stations if it doesn't exist
+        Optional<State> existingState = stateRepository.findByName("Tunisia");
+        
+        if (existingState.isPresent()) {
+            return existingState.get();
+        }
+        
+        State state = new State();
+        state.setName("Tunisia");
+        state.setPriceMultiplier(BigDecimal.valueOf(1.0)); // Normal pricing
+        
+        State savedState = stateRepository.save(state);
+        System.out.println("Created default state: Tunisia");
+        return savedState;
+    }
+    
+    private void createStationsIfNotExist(State defaultState) {
+        // Create stations if they don't exist
+        createStationIfNotExists("Tunis", 10.090942, 36.708064, defaultState);
+        createStationIfNotExists("Binzert", 9.728394, 36.980615, defaultState);
+        createStationIfNotExists("Nabeel", 10.750122, 36.743286, defaultState);
+        createStationIfNotExists("Zaghouan", 10.030518, 36.284135, defaultState);
+        createStationIfNotExists("Soussa", 10.442505, 35.889050, defaultState);
+        createStationIfNotExists("Mahdia", 10.936890, 35.505400, defaultState);
+        createStationIfNotExists("Sfax", 10.717163, 34.786739, defaultState);
+        createStationIfNotExists("Qurwen", 9.843750, 35.550105, defaultState);
+        createStationIfNotExists("Sidi Bouzide", 9.470215, 34.777716, defaultState);
+        
+        System.out.println("Initialized stations");
+    }
+    
+    private void createStationIfNotExists(String name, double longitude, double latitude, State state) {
+        if (stationRepository.findByName(name).isEmpty()) {
+            Station station = new Station();
+            station.setName(name);
+            station.setLongitude(longitude);
+            station.setLatitude(latitude);
+            station.setState(state);
+            station.setStatus(Station.StationStatus.OPEN);
+            
+            stationRepository.save(station);
+            System.out.println("Created station: " + name);
         }
     }
 }

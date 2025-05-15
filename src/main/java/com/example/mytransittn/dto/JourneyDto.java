@@ -8,6 +8,8 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 @Builder
@@ -22,9 +24,13 @@ public class JourneyDto {
     private Journey.JourneyStatus status;
     private Double distanceKm;
     private BigDecimal fare;
-    private LineSummaryDto line;
+    private LineSummaryDto primaryLine; // Primary line (first line in a multi-line journey)
     private UserSummaryDto user;
     private String error; // For error messages
+    
+    // New field for multi-line journeys
+    private List<JourneySegmentDto> segments = new ArrayList<>();
+    private boolean isMultiLineJourney = false;
 
     public static JourneyDto fromEntity(Journey journey) {
         if (journey == null) {
@@ -57,7 +63,7 @@ public class JourneyDto {
             LineSummaryDto lineDto = new LineSummaryDto();
             lineDto.setId(journey.getLine().getId());
             lineDto.setCode(journey.getLine().getCode());
-            dto.setLine(lineDto);
+            dto.setPrimaryLine(lineDto);
         }
         
         if (journey.getUser() != null) {
@@ -94,6 +100,17 @@ public class JourneyDto {
     public static class JourneyRequestDto {
         private Long startStationId;
         private Long endStationId;
-        private Long lineId;
+        private Long lineId; // Optional: if not provided, system will find the best route
+    }
+    
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class JourneySegmentDto {
+        private LineSummaryDto line;
+        private StationSummaryDto startStation;
+        private StationSummaryDto endStation;
+        private Double distanceKm;
+        private boolean isTransfer;
     }
 } 

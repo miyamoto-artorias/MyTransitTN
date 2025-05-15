@@ -9,6 +9,7 @@ import com.example.mytransittn.repository.LineRepository;
 import com.example.mytransittn.repository.StationRepository;
 import com.example.mytransittn.repository.UserRepository;
 import com.example.mytransittn.service.FareCalculationService;
+import com.example.mytransittn.service.RoutePlanningService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -33,16 +34,19 @@ public class JourneyController {
     private final StationRepository stationRepository;
     private final LineRepository lineRepository;
     private final FareCalculationService fareCalculationService;
+    private final RoutePlanningService routePlanningService;
 
     @Autowired
     public JourneyController(JourneyRepository journeyRepository, UserRepository userRepository,
                             StationRepository stationRepository, LineRepository lineRepository,
-                            FareCalculationService fareCalculationService) {
+                            FareCalculationService fareCalculationService,
+                            RoutePlanningService routePlanningService) {
         this.journeyRepository = journeyRepository;
         this.userRepository = userRepository;
         this.stationRepository = stationRepository;
         this.lineRepository = lineRepository;
         this.fareCalculationService = fareCalculationService;
+        this.routePlanningService = routePlanningService;
     }
 
     @GetMapping
@@ -112,18 +116,15 @@ public class JourneyController {
         System.out.println("User authenticated: " + user.getUsername() + " (ID: " + user.getId() + ")");
 
         // Validate request
-        if (request.getStartStationId() == null || request.getEndStationId() == null || 
-            request.getLineId() == null) {
+        if (request.getStartStationId() == null || request.getEndStationId() == null) {
             return ResponseEntity.badRequest()
-                .body(Map.of("error", "Missing required fields"));
+                .body(Map.of("error", "Missing required fields: start and end stations"));
         }
-
-        // Find stations and line
+        
+        // Validate that stations exist
         var startStationOpt = stationRepository.findById(request.getStartStationId());
         var endStationOpt = stationRepository.findById(request.getEndStationId());
-        var lineOpt = lineRepository.findById(request.getLineId());
-
-        // Validate entities exist
+        
         if (startStationOpt.isEmpty()) {
             return ResponseEntity.badRequest()
                 .body(Map.of("error", "Start station not found (ID: " + request.getStartStationId() + ")"));
@@ -134,13 +135,42 @@ public class JourneyController {
                 .body(Map.of("error", "End station not found (ID: " + request.getEndStationId() + ")"));
         }
         
-        if (lineOpt.isEmpty()) {
+        Station startStation = startStationOpt.get();
+        Station endStation = endStationOpt.get();
+        
+        // Check if stations are the same
+        if (startStation.getId().equals(endStation.getId())) {
             return ResponseEntity.badRequest()
-                .body(Map.of("error", "Line not found (ID: " + request.getLineId() + ")"));
+                .body(Map.of("error", "Start and end stations cannot be the same"));
         }
         
-        var startStation = startStationOpt.get();
-        var endStation = endStationOpt.get();
+        try {
+            // If lineId is specified, use that specific line
+            if (request.getLineId() != null) {
+                return createSingleLineJourney(user, startStation, endStation, request.getLineId());
+            } else {
+                // If no lineId provided, use the route planning service to find the best route
+                return createMultiLineJourney(user, startStation, endStation);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500)
+                .body(Map.of("error", "Failed to create journey: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Create a journey using a specific line
+     */
+    private ResponseEntity<?> createSingleLineJourney(User user, Station startStation, Station endStation, Long lineId) {
+        // Find the specified line
+        var lineOpt = lineRepository.findById(lineId);
+        
+        if (lineOpt.isEmpty()) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "Line not found (ID: " + lineId + ")"));
+        }
+        
         var line = lineOpt.get();
         
         // Validate that both stations are on the selected line
@@ -187,7 +217,6 @@ public class JourneyController {
             journey.setDistanceKm(distance);
             
             // Pre-calculate fare for informational purposes
-            // Note: This will be recalculated when journey is completed
             BigDecimal fare = fareCalculationService.calculateFare(journey);
             journey.setFare(fare);
         } catch (Exception e) {
@@ -197,6 +226,85 @@ public class JourneyController {
 
         Journey savedJourney = journeyRepository.save(journey);
         return ResponseEntity.ok(JourneyDto.fromEntity(savedJourney));
+    }
+    
+    /**
+     * Create a journey using the most efficient route between stations, potentially using multiple lines
+     */
+    private ResponseEntity<?> createMultiLineJourney(User user, Station startStation, Station endStation) {
+        try {
+            // Use the route planning service to find the best route
+            RoutePlanningService.JourneyPlan plan = routePlanningService.findRoute(
+                startStation.getId(), endStation.getId());
+            
+            if (plan == null || plan.isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Could not find a route between the specified stations"));
+            }
+            
+            // Get the primary line (first line in the plan)
+            var primaryLine = plan.getPrimaryLine();
+            if (primaryLine == null) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Failed to determine primary line for the journey"));
+            }
+            
+            // Create the journey using the primary line
+            Journey journey = new Journey();
+            journey.setStartStation(startStation);
+            journey.setEndStation(endStation);
+            journey.setLine(primaryLine); // Use the first line as the primary one
+            journey.setUser(user);
+            journey.setStartTime(LocalDateTime.now());
+            journey.setStatus(Journey.JourneyStatus.PLANNED);
+            journey.setDistanceKm(plan.getTotalDistance());
+            
+            // Pre-calculate fare based on the total distance
+            BigDecimal fare = fareCalculationService.calculateFare(journey);
+            journey.setFare(fare);
+            
+            Journey savedJourney = journeyRepository.save(journey);
+            JourneyDto journeyDto = JourneyDto.fromEntity(savedJourney);
+            
+            // Add multi-line journey segments
+            journeyDto.setMultiLineJourney(plan.getSegments().size() > 1);
+            
+            // Add segments to the DTO
+            for (RoutePlanningService.JourneySegment segment : plan.getSegments()) {
+                JourneyDto.JourneySegmentDto segmentDto = new JourneyDto.JourneySegmentDto();
+                
+                // Create line summary
+                JourneyDto.LineSummaryDto lineDto = new JourneyDto.LineSummaryDto();
+                lineDto.setId(segment.getLine().getId());
+                lineDto.setCode(segment.getLine().getCode());
+                segmentDto.setLine(lineDto);
+                
+                // Create station summaries
+                JourneyDto.StationSummaryDto startStationDto = new JourneyDto.StationSummaryDto();
+                startStationDto.setId(segment.getStartStation().getId());
+                startStationDto.setName(segment.getStartStation().getName());
+                segmentDto.setStartStation(startStationDto);
+                
+                JourneyDto.StationSummaryDto endStationDto = new JourneyDto.StationSummaryDto();
+                endStationDto.setId(segment.getEndStation().getId());
+                endStationDto.setName(segment.getEndStation().getName());
+                segmentDto.setEndStation(endStationDto);
+                
+                segmentDto.setDistanceKm(segment.getDistance());
+                segmentDto.setTransfer(segment.isTransfer());
+                
+                journeyDto.getSegments().add(segmentDto);
+            }
+            
+            return ResponseEntity.ok(journeyDto);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500)
+                .body(Map.of("error", "Failed to create multi-line journey: " + e.getMessage()));
+        }
     }
 
     @PutMapping("/{id}/start")
