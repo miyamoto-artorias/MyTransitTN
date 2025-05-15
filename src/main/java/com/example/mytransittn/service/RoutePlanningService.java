@@ -171,50 +171,75 @@ public class RoutePlanningService {
      * Find a route that requires changing lines
      */
     private JourneyPlan findRouteWithTransfers(Station startStation, Station endStation) {
-        // Use Breadth-First Search to find the shortest path
-        Queue<PathNode> queue = new LinkedList<>();
-        Set<Long> visitedStations = new HashSet<>();
-        
-        // Start by adding all possible starting points
-        for (Line line : startStation.getLines()) {
-            queue.add(new PathNode(startStation, line, null, 0.0));
-        }
-        
-        visitedStations.add(startStation.getId());
-        
-        while (!queue.isEmpty()) {
-            PathNode currentNode = queue.poll();
-            Station currentStation = currentNode.station;
-            Line currentLine = currentNode.line;
+        try {
+            // Use Breadth-First Search to find the shortest path
+            Queue<PathNode> queue = new LinkedList<>();
+            Set<Long> visitedStations = new HashSet<>();
             
-            // Check if we've reached the destination
-            if (currentStation.getId().equals(endStation.getId())) {
-                // Reconstruct the path
-                return reconstructPath(currentNode, startStation, endStation);
-            }
+            // Get all lines to avoid lazy loading issues
+            List<Line> allLines = lineRepository.findAllWithStations();
             
-            // Continue on the current line
-            List<Station> nextStationsOnLine = findAdjacentStationsOnLine(currentLine, currentStation);
-            for (Station nextStation : nextStationsOnLine) {
-                if (!visitedStations.contains(nextStation.getId())) {
-                    double distance = openRouteService.calculateDistance(currentStation, nextStation);
-                    queue.add(new PathNode(nextStation, currentLine, currentNode, distance));
-                    visitedStations.add(nextStation.getId());
+            // Start by adding all possible starting points
+            for (Line line : allLines) {
+                if (containsStation(line, startStation.getId())) {
+                    queue.add(new PathNode(startStation, line, null, 0.0));
                 }
             }
             
-            // Try changing to a different line at this station
-            if (currentNode.parent != null) { // Don't try to change lines at the start station
-                for (Line nextLine : currentStation.getLines()) {
-                    if (!nextLine.equals(currentLine)) { // Different line
-                        queue.add(new PathNode(currentStation, nextLine, currentNode, 0.0)); // 0 distance for transfer
+            visitedStations.add(startStation.getId());
+            
+            while (!queue.isEmpty()) {
+                PathNode currentNode = queue.poll();
+                Station currentStation = currentNode.station;
+                Line currentLine = currentNode.line;
+                
+                // Check if we've reached the destination
+                if (currentStation.getId().equals(endStation.getId())) {
+                    // Reconstruct the path
+                    return reconstructPath(currentNode, startStation, endStation);
+                }
+                
+                // Continue on the current line
+                List<Station> nextStationsOnLine = findAdjacentStationsOnLine(currentLine, currentStation);
+                for (Station nextStation : nextStationsOnLine) {
+                    if (!visitedStations.contains(nextStation.getId())) {
+                        double distance = openRouteService.calculateDistance(currentStation, nextStation);
+                        queue.add(new PathNode(nextStation, currentLine, currentNode, distance));
+                        visitedStations.add(nextStation.getId());
+                    }
+                }
+                
+                // Try changing to a different line at this station
+                if (currentNode.parent != null) { // Don't try to change lines at the start station
+                    // Get all lines that contain the current station
+                    for (Line nextLine : allLines) {
+                        if (containsStation(nextLine, currentStation.getId()) && 
+                            !nextLine.getId().equals(currentLine.getId())) { // Different line
+                            queue.add(new PathNode(currentStation, nextLine, currentNode, 0.0)); // 0 distance for transfer
+                        }
                     }
                 }
             }
+            
+            // No route found
+            return null;
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("Error in findRouteWithTransfers: " + e.getMessage());
+            return null;
         }
-        
-        // No route found
-        return null;
+    }
+    
+    /**
+     * Helper method to check if a line contains a station by ID
+     */
+    private boolean containsStation(Line line, Long stationId) {
+        for (Station station : line.getStations()) {
+            if (station.getId().equals(stationId)) {
+                return true;
+            }
+        }
+        return false;
     }
     
     /**

@@ -3,13 +3,16 @@ package com.example.mytransittn.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @Entity
 @Table(name = "stations")
@@ -40,5 +43,27 @@ public class Station {
 
     public enum StationStatus { OPEN, CLOSED, UNDER_MAINTENANCE }
     
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Station station = (Station) o;
+        return Objects.equals(id, station.id);
+    }
 
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+    
+    @Override
+    public String toString() {
+        return "Station{" +
+               "id=" + id +
+               ", name='" + name + '\'' +
+               ", latitude=" + latitude +
+               ", longitude=" + longitude +
+               ", status=" + status +
+               '}';
+    }
 } 
