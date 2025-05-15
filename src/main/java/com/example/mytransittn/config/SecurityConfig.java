@@ -1,8 +1,10 @@
 package com.example.mytransittn.config;
 
 
+import com.example.mytransittn.security.JwtAuthenticationFilter;
 import com.example.mytransittn.service.CustomOAuth2UserService;
 import com.example.mytransittn.service.CustomUserDetailsService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
@@ -12,8 +14,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.rememberme.TokenBasedRememberMeServices;
-import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -34,7 +35,9 @@ public class SecurityConfig {
 
     private final CustomUserDetailsService userDetailsService;
     private final CustomOAuth2UserService customOAuth2UserService;
-    private final String REMEMBER_ME_KEY = "uniqueAndSecretKey";
+    
+    @Autowired
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     public SecurityConfig(CustomUserDetailsService userDetailsService, @Lazy CustomOAuth2UserService customOAuth2UserService) {
         this.userDetailsService = userDetailsService;
@@ -65,22 +68,11 @@ public class SecurityConfig {
                     .defaultSuccessUrl("http://localhost:4200/dashboard", true)
                 );
         } else {
-            // Production mode configuration - full security
+            // Production mode configuration - full security with JWT
             http.cors(withDefaults())
-                .csrf(csrf -> csrf
-                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                    .ignoringRequestMatchers(
-                        "/api/auth/forgot-password",
-                        "/api/auth/reset-password",
-                        "/api/auth/login",
-                        "/api/auth/register",
-                        "/api/auth/continue-with-email"
-                    )
-                )
+                .csrf(csrf -> csrf.disable()) // JWT is stateless, so CSRF is not needed
                 .sessionManagement(session -> session
-                    .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                    .maximumSessions(1)
-                    .expiredUrl("/login?expired")
+                    .sessionCreationPolicy(SessionCreationPolicy.STATELESS) // Set to STATELESS for JWT
                 )
                 .authorizeHttpRequests(auth -> auth
                     .requestMatchers("/api/auth/check", "/api/auth/login", "/api/auth/register", 
@@ -88,9 +80,6 @@ public class SecurityConfig {
                         "/swagger-ui-custom.html", "/swagger-ui.html", "/swagger-ui/**", 
                         "/v3/api-docs/**", "/webjars/**").permitAll()
                     .anyRequest().hasAnyRole("ADMIN", "USER")
-                )
-                .rememberMe(rememberMe -> rememberMe
-                    .rememberMeServices(rememberMeServices())
                 )
                 .oauth2Login(oauth2 -> oauth2
                     .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
@@ -102,9 +91,16 @@ public class SecurityConfig {
                         response.setStatus(HttpServletResponse.SC_OK);
                     })
                     .invalidateHttpSession(true)
-                    .deleteCookies("JSESSIONID", "remember-me")
                     .permitAll()
+                )
+                .exceptionHandling(exception -> exception
+                    .authenticationEntryPoint((request, response, ex) -> {
+                        response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
+                    })
                 );
+                
+            // Add JWT filter before UsernamePasswordAuthenticationFilter
+            http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         }
         return http.build();
     }
@@ -119,21 +115,9 @@ public class SecurityConfig {
         configuration.setAllowedMethods(List.of("*"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
-        configuration.setExposedHeaders(List.of("Set-Cookie"));
+        configuration.setExposedHeaders(List.of("Authorization"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
-    }
-
-    @Bean
-    public TokenBasedRememberMeServices rememberMeServices() {
-        TokenBasedRememberMeServices services = new TokenBasedRememberMeServices(
-                REMEMBER_ME_KEY, userDetailsService);
-        services.setTokenValiditySeconds(7200);
-        services.setAlwaysRemember(false);
-        services.setParameter("remember-me");
-        services.setCookieName("remember-me");
-        services.setUseSecureCookie(false);
-        return services;
     }
 }

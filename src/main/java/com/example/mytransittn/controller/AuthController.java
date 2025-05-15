@@ -5,11 +5,11 @@ import com.example.mytransittn.model.PasswordResetToken;
 import com.example.mytransittn.model.User;
 import com.example.mytransittn.repository.PasswordResetTokenRepository;
 import com.example.mytransittn.repository.UserRepository;
+import com.example.mytransittn.security.JwtUtils;
 import com.example.mytransittn.service.EmailService;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -19,12 +19,11 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.web.authentication.RememberMeServices;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -38,7 +37,7 @@ public class AuthController {
     private final PasswordResetTokenRepository tokenRepository;
     private final EmailService emailService;
     private final AuthenticationManager authenticationManager;
-    private final RememberMeServices rememberMeServices;
+    private final JwtUtils jwtUtils;
 
     @Autowired
     public AuthController(UserRepository userRepository,
@@ -46,13 +45,13 @@ public class AuthController {
                           PasswordResetTokenRepository tokenRepository,
                           EmailService emailService,
                           AuthenticationManager authenticationManager,
-                          RememberMeServices rememberMeServices) {
+                          JwtUtils jwtUtils) {
         this.userRepository = userRepository;
         this.encoder = encoder;
         this.tokenRepository = tokenRepository;
         this.emailService = emailService;
         this.authenticationManager = authenticationManager;
-        this.rememberMeServices = rememberMeServices;
+        this.jwtUtils = jwtUtils;
     }
 
     @PostMapping("/login")
@@ -65,14 +64,15 @@ public class AuthController {
             );
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            HttpSession session = request.getSession(true);
-            session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, SecurityContextHolder.getContext());
-
-            if (loginRequest.isRememberMe()) {
-                rememberMeServices.loginSuccess(request, response, authentication);
-            }
-
-            return ResponseEntity.ok().body(Collections.singletonMap("message", "Connexion réussie"));
+            // Generate JWT token
+            String jwt = jwtUtils.generateJwtToken(authentication);
+            
+            // Return the token in the response
+            Map<String, Object> responseBody = new HashMap<>();
+            responseBody.put("message", "Connexion réussie");
+            responseBody.put("token", jwt);
+            
+            return ResponseEntity.ok().body(responseBody);
         } catch (AuthenticationException e) {
             return ResponseEntity.status(401).body(Collections.singletonMap("error", "Email ou mot de passe invalide"));
         }
