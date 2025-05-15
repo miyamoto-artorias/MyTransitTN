@@ -14,10 +14,12 @@ import java.util.List;
 @Service
 public class FareCalculationService {
     private final FareConfigurationRepository fareConfigRepo;
+    private final OpenRouteService openRouteService;
     private static final double EARTH_RADIUS_KM = 6371;
 
-    public FareCalculationService(FareConfigurationRepository fareConfigRepo) {
+    public FareCalculationService(FareConfigurationRepository fareConfigRepo, OpenRouteService openRouteService) {
         this.fareConfigRepo = fareConfigRepo;
+        this.openRouteService = openRouteService;
     }
 
     /**
@@ -48,8 +50,8 @@ public class FareCalculationService {
         
         // If stations not found in the line
         if (startIndex == -1 || endIndex == -1) {
-            // Fallback to direct distance
-            return calculateDirectDistance(start, end);
+            // Fallback to direct distance using OpenRouteService
+            return openRouteService.calculateDistance(start, end);
         }
         
         // Ensure proper direction (handle if traveling backward on the line)
@@ -59,37 +61,22 @@ public class FareCalculationService {
             endIndex = temp;
         }
         
-        // Calculate distance between consecutive stations
+        // Calculate distance between consecutive stations using OpenRouteService
         double totalDistance = 0.0;
         for (int i = startIndex; i < endIndex; i++) {
             Station current = lineStations.get(i);
             Station next = lineStations.get(i + 1);
-            totalDistance += calculateDirectDistance(current, next);
+            totalDistance += openRouteService.calculateDistance(current, next);
         }
         
         return totalDistance;
     }
     
     /**
-     * Calculate direct distance between two stations using Haversine formula
-     */
-    private double calculateDirectDistance(Station a, Station b) {
-        double lat1 = Math.toRadians(a.getLatitude()),
-               lon1 = Math.toRadians(a.getLongitude()),
-               lat2 = Math.toRadians(b.getLatitude()),
-               lon2 = Math.toRadians(b.getLongitude());
-        double dLat = lat2 - lat1, dLon = lon2 - lon1;
-        double h = Math.sin(dLat/2) * Math.sin(dLat/2)
-                 + Math.cos(lat1) * Math.cos(lat2)
-                 * Math.sin(dLon/2) * Math.sin(dLon/2);
-        return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1-h));
-    }
-    
-    /**
      * Backwards compatibility method
      */
     public double computeDistance(Station a, Station b) {
-        return calculateDirectDistance(a, b);
+        return openRouteService.calculateDistance(a, b);
     }
 
     public BigDecimal calculateFare(Journey j) {
